@@ -2,7 +2,7 @@ import collections
 import re
 import csv
 
-file_path = 'combined_output.txt'
+file_path = 'output.txt'
 csv_output_file = 'top_30_common_words.csv'
 
 word_count = collections.Counter()

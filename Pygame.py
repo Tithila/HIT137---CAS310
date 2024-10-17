@@ -202,3 +202,146 @@ def run_game():
     running = True
     spawn_timer, orb_spawn_timer = 0, 0
     boss = None
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_z or event.key == pygame.K_e:
+                    player.shoot()
+                if event.key == pygame.K_q:
+                    player.special_attack()
+
+        keys = pygame.key.get_pressed()
+        player.handle_movement(keys)
+        player.handle_reload(keys)
+
+        # Enemy spawning logic (only when no boss fight)
+        if not boss_fight:
+            spawn_timer += 1
+            if spawn_timer > 120:  # Spawn an enemy every 2 seconds (60 FPS)
+                enemy = Enemy(current_level)
+                all_sprites.add(enemy)
+                enemies.add(enemy)
+                spawn_timer = 0
+
+        # Level and boss check
+        if not boss_fight and enemies_defeated >= 20:
+            if current_level < 3:
+                current_level += 1
+                enemies_defeated = 0
+            else:
+                boss_fight = True
+                boss = Boss(current_level)
+                all_sprites.add(boss)
+                enemies.add(boss)
+
+        # Randomly spawn orbs
+        orb_spawn_timer += 1
+        if orb_spawn_timer > 300:  # Spawn orb every 5 seconds (at 60 FPS)
+            orb_type = random.choice(['health', 'energy'])
+            x_pos = random.randint(200, SCREEN_WIDTH - 50)
+            orb = Orb(x_pos, GROUND_HEIGHT - 10, orb_type)
+            all_sprites.add(orb)
+            orbs.add(orb)
+            orb_spawn_timer = 0
+
+        # Check for orb collisions
+        orb_hits = pygame.sprite.spritecollide(player, orbs, True)
+        for orb in orb_hits:
+            if orb.orb_type == 'health':
+                player.gain_health(HEALTH_ORB_RESTORE)
+            elif orb.orb_type == 'energy':
+                player.gain_energy(ENERGY_ORB_GAIN)
+
+        # Update all sprites
+        all_sprites.update()
+
+        # Handle collisions
+        # Player collides with enemies
+        if pygame.sprite.spritecollide(player, enemies, False):
+            player.take_damage(ENEMY_COLLISION_DAMAGE)
+
+        # Player collides with enemy projectiles
+        enemy_projectile_hits = pygame.sprite.spritecollide(player, enemy_projectiles, True)
+        for projectile in enemy_projectile_hits:
+            player.take_damage(ENEMY_PROJECTILE_DAMAGE)  # Apply damage from enemy projectile
+
+        # Projectile hits an enemy
+        hits = pygame.sprite.groupcollide(enemies, projectiles, False, True)
+        for enemy, bullet_list in hits.items():
+            for bullet in bullet_list:
+                enemy.health -= PROJECTILE_DAMAGE
+                if enemy.health <= 0:
+                    enemy.kill()
+                    enemies_defeated += 1
+                    player.gain_energy()  # Grant energy on enemy kill
+                    total_kills += 1  # Increment total kills when an enemy is killed
+                    if isinstance(enemy, Boss):
+                        show_end_screen("You Win!")
+                        return
+
+        # Missile hits an enemy
+        missile_hits = pygame.sprite.groupcollide(enemies, missiles, False, True)
+        for enemy, missile_list in missile_hits.items():
+            for missile in missile_list:
+                enemy.health -= MISSILE_DAMAGE
+                if enemy.health <= 0:
+                    enemy.kill()
+                    enemies_defeated += 1
+                    player.gain_energy()  # Grant energy on enemy kill
+                    total_kills += 1  # Increment total kills when an enemy is killed
+                    if isinstance(enemy, Boss):
+                        show_end_screen("You Win!")
+                        return
+
+        # Check if the player dies
+        if player.health <= 0:
+            show_end_screen("You Lose!")
+            return
+
+        # Drawing code
+        screen.fill(WHITE)
+        pygame.draw.rect(screen, BLACK, (0, GROUND_HEIGHT, SCREEN_WIDTH, SCREEN_HEIGHT - GROUND_HEIGHT))
+        all_sprites.draw(screen)
+        player.draw_info(screen)
+        font = pygame.font.SysFont(None, 36)
+        level_text = font.render(f"Level: {current_level}", True, BLACK)
+        screen.blit(level_text, (SCREEN_WIDTH - 150, 10))
+
+        # Draw boss health bar if boss is active
+        if boss_fight and boss:
+            boss.draw_health_bar(screen)
+
+        pygame.display.flip()
+        clock.tick(FPS)
+
+def show_end_screen(message):
+    screen.fill(WHITE)
+    font = pygame.font.SysFont(None, 72)
+    message_text = font.render(message, True, BLACK)
+    kills_text = font.render(f"Total Kills: {total_kills}", True, BLACK)
+    restart_text = font.render("Press R to Restart or Q to Quit", True, BLACK)
+    screen.blit(message_text, (SCREEN_WIDTH // 2 - message_text.get_width() // 2, SCREEN_HEIGHT // 3))
+    screen.blit(kills_text, (SCREEN_WIDTH // 2 - kills_text.get_width() // 2, SCREEN_HEIGHT // 2))
+    screen.blit(restart_text, (SCREEN_WIDTH // 2 - restart_text.get_width() // 2, SCREEN_HEIGHT // 1.5))
+    pygame.display.flip()
+
+    waiting = True
+    while waiting:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_r:
+                    run_game()  # Restart the game loop
+                    waiting = False  # Exit the waiting loop after restart
+                elif event.key == pygame.K_q:
+                    pygame.quit()
+                    sys.exit()
+
+# Start the game
+run_game()
+pygame.quit()
